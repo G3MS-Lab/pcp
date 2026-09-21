@@ -6,44 +6,40 @@ from pcp.nn.PointNet.TNet import TNet
 
 class PointNetBackbone(nn.Module):
     def __init__(
-		self,
-		in_channels: int, 
-		out_channels: int,
+        self,
+        in_channels: int,
         global_feats: bool,
-        use_tnet: bool = False
-	):
+        out_channels: list[list[int]] | tuple[tuple[int, ...], tuple[int, ...]] = (
+            (64, 64), (64, 128, 1024)
+        ),
+        use_tnet: bool = False,
+    ):
         super().__init__()
         self.global_feats = global_feats
         self.use_tnet = use_tnet
-        self.shared_mlp1 = nn.Sequential(
-            nn.Conv1d(in_channels, 64, kernel_size = 1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Conv1d(64, 64, kernel_size = 1),
-            nn.BatchNorm1d(64),
-            nn.ReLU()
-        )
 
-        self.max_pool = self.pool = nn.AdaptiveMaxPool1d(1)
+        self.feature_channels = out_channels[0][-1]
+        self.out_channels = out_channels[1][-1]
+        self.max_pool = nn.AdaptiveMaxPool1d(1)
 
-        self.shared_mlp2 = nn.Sequential(
-            nn.Conv1d(64, 64, kernel_size = 1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Conv1d(64, 128, kernel_size = 1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Conv1d(128, 1024, kernel_size = 1),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Conv1d(1024, out_channels, kernel_size = 1),
-            nn.BatchNorm1d(out_channels),
-            nn.ReLU(),
-        )
+        mlp_layers = []
+        last_channels = in_channels
+        for channels in out_channels:
+            layers = []
+            for channel in channels:
+                layers.extend((
+                    nn.Conv1d(last_channels, channel, kernel_size=1),
+                    nn.BatchNorm1d(channel),
+                    nn.ReLU(),
+                ))
+                last_channels = channel
+            mlp_layers.append(nn.Sequential(*layers))
+
+        self.shared_mlp1, self.shared_mlp2 = mlp_layers
 
         if self.use_tnet:
             self.tnet1 = TNet(dim = in_channels)
-            self.tnet2 = TNet(dim = 64) 
+            self.tnet2 = TNet(dim = self.feature_channels)
 
     def forward(self, points: PointCloud | torch.Tensor):
         x = points.points if isinstance(points, PointCloud) else points
@@ -68,7 +64,7 @@ class PointNetBackbone(nn.Module):
 
         x = self.shared_mlp2(x)
 
-        global_feats = self.pool(x).view(batch_size, -1) # (B, out_channels)
+        global_feats = self.max_pool(x).view(batch_size, -1) # (B, out_channels)
 
         # classification
         if self.global_feats:

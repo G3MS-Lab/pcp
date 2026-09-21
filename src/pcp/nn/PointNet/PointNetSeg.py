@@ -7,31 +7,34 @@ from pcp.nn.PointNet.PointNet import PointNetBackbone
 class PointNetSeg(nn.Module):
     def __init__(
         self,
-		in_channels: int, 
+        in_channels: int,
         num_classes: int,
-        use_tnet: bool = False
+        use_tnet: bool = False,
+        backbone_channels: tuple[tuple[int, ...], tuple[int, ...]] = (
+            (64, 64), (64, 128, 1024)
+        ),
+        segmentation_channels: list[int] | tuple[int, ...] = (512, 256, 128),
     ):
         super().__init__()
         self.use_tnet = use_tnet
 
         self.pointnet = PointNetBackbone(
             in_channels = in_channels,
-            out_channels = 1024,
+            out_channels = backbone_channels,
             global_feats = False,
             use_tnet = use_tnet
         )
-        self.segmentation_head = nn.Sequential(
-            nn.Conv1d(1088, 512, kernel_size=1),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Conv1d(512, 256, kernel_size=1),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Conv1d(256, 128, kernel_size=1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Conv1d(128, num_classes, kernel_size=1)
-        )
+        layers = []
+        last_channels = self.pointnet.feature_channels + self.pointnet.out_channels
+        for channels in segmentation_channels:
+            layers.extend((
+                nn.Conv1d(last_channels, channels, kernel_size=1),
+                nn.BatchNorm1d(channels),
+                nn.ReLU(),
+            ))
+            last_channels = channels
+        layers.append(nn.Conv1d(last_channels, num_classes, kernel_size=1))
+        self.segmentation_head = nn.Sequential(*layers)
 
     def forward(self, points: PointCloud | torch.Tensor):
         x = points.points if isinstance(points, PointCloud) else points
