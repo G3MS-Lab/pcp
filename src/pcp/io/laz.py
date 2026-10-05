@@ -72,5 +72,6 @@ def write_laz(
             labels_arr = np.asarray(labels)
         las.classification = labels_arr.reshape(-1).astype(np.uint8)
 
-    las.write(path)
-	
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    las.write(str(path))
