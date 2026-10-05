@@ -1,8 +1,15 @@
 import torch
 
 from pcp.core.PointCloud import PointCloud
+from pcp.grouping._query import index_points, nearest_indices
 
-def knn(points: PointCloud | torch.Tensor, centroids: PointCloud | torch.Tensor, k: int) -> PointCloud:
+
+def knn(
+    points: PointCloud | torch.Tensor,
+    centroids: PointCloud | torch.Tensor,
+    k: int,
+    return_indices: bool = False,
+):
     points = points.points if isinstance(points, PointCloud) else points
     centroids = centroids.points if isinstance(centroids, PointCloud) else centroids
 
@@ -14,15 +21,12 @@ def knn(points: PointCloud | torch.Tensor, centroids: PointCloud | torch.Tensor,
         points = points.unsqueeze(0)
     if centroids.ndim == 2:
         centroids = centroids.unsqueeze(0)
-    distances = torch.cdist(centroids, points)
-    _, indices = torch.topk(distances, k, dim=-1, largest=False)
-
-    batch_size = points.shape[0]
-    batch_idx = torch.arange(batch_size, device=points.device)
-    batch_idx = batch_idx.view(batch_size, 1, 1)
-    result = points[batch_idx, indices]
+    indices, _ = nearest_indices(points, centroids, k)
+    result = index_points(points, indices)
 
     if unbatched:
         result = result.squeeze(0)
+        indices = indices.squeeze(0)
 
-    return PointCloud(result)
+    result = PointCloud(result)
+    return (result, indices) if return_indices else result
