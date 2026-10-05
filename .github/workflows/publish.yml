@@ -9,7 +9,7 @@ jobs:
     name: Build and publish to PyPI
     runs-on: ubuntu-latest
     permissions:
-      contents: read # Required to checkout the repository
+      contents: read # Required to checkout repository
       id-token: write # Required for PyPI Trusted Publishing (OIDC)
     steps:
       - name: Check out repository
