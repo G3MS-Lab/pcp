@@ -7,10 +7,12 @@ import torch
 class PointCloud:
     points: torch.Tensor
     labels: torch.Tensor | None = None
+    features: torch.Tensor | None = None
 
-    def __init__(self, points: torch.Tensor, labels: torch.Tensor | None = None):
+    def __init__(self, points: torch.Tensor, labels: torch.Tensor | None = None, features: torch.Tensor | None = None):
         self.points = points
         self.labels = labels
+        self.features = features
 
     def __getitem__(self, index: Any):
         if isinstance(index, tuple):
